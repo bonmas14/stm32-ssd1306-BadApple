@@ -185,5 +185,4 @@ void tim2_isr(void) {
     frame++;
 
     TIM2_SR &= ~TIM_SR_UIF;
-    TIM2_CR1 |= TIM_CR1_CEN;
 }
