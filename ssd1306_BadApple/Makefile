@@ -1,11 +1,10 @@
-PROJECT = ssd1306_GOL
+PROJECT = badapple
 BUILD_DIR = bin
 
 CFILES = main.c
-CFILES += gol.c
 
 # TODO - you will need to edit these two lines!
-DEVICE=stm32f103c8
+DEVICE=stm32f103cb
 OOCD_FILE = board/stm32f4discovery.cfg
 
 # You shouldn't have to edit anything below here.

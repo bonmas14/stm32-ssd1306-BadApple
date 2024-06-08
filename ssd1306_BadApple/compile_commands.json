@@ -1,1 +1,41 @@
-[]
+[
+  {
+    "arguments": [
+      "/usr/bin/arm-none-eabi-gcc",
+      "-Os",
+      "-std=c99",
+      "-ggdb3",
+      "-mcpu=cortex-m3",
+      "-mthumb",
+      "-msoft-float",
+      "-fno-common",
+      "-ffunction-sections",
+      "-fdata-sections",
+      "-Wextra",
+      "-Wshadow",
+      "-Wno-unused-variable",
+      "-Wimplicit-function-declaration",
+      "-Wredundant-decls",
+      "-Wstrict-prototypes",
+      "-Wmissing-prototypes",
+      "-Wall",
+      "-Wundef",
+      "-I.",
+      "-I.",
+      "-I../libopencm3/include",
+      "-I.",
+      "-I.",
+      "-I../libopencm3/include",
+      "-DSTM32F1",
+      "-DSTM32F103CB",
+      "-I../libopencm3/include",
+      "-c",
+      "-o",
+      "bin/main.o",
+      "main.c"
+    ],
+    "directory": "/home/bonmas/stm32-ssd1306-BadApple/ssd1306_BadApple",
+    "file": "/home/bonmas/stm32-ssd1306-BadApple/ssd1306_BadApple/main.c",
+    "output": "/home/bonmas/stm32-ssd1306-BadApple/ssd1306_BadApple/bin/main.o"
+  }
+]

@@ -1,9 +1,10 @@
-#include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
+#include <libopencm3/stm32/timer.h>
 #include <libopencm3/stm32/i2c.h>
+#include <libopencm3/cm3/nvic.h>
 
-#include "gol.h"
+#include "apple.h"
 
 #include <stdint.h>
 
@@ -15,7 +16,12 @@
 static uint8_t ssd1306_buffer[ssd1306_buffer_size];
 
 static void clock_init(void) {
-    rcc_clock_setup_in_hse_8mhz_out_72mhz();
+    rcc_clock_setup_pll(&rcc_hse_configs[RCC_CLOCK_HSE8_72MHZ]);
+    
+    rcc_periph_clock_enable(RCC_TIM2);
+
+    nvic_enable_irq(NVIC_TIM2_IRQ);
+    nvic_set_priority(NVIC_TIM2_IRQ, 1);
 }
 
 static void gpio_init(void) {
@@ -24,13 +30,6 @@ static void gpio_init(void) {
 	gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ, 
             GPIO_CNF_OUTPUT_PUSHPULL, 
             GPIO13);
-}
-
-static void wait(uint32_t mul)
-{
-    for (uint32_t i = 0; i < (1000000 * mul); i++) {
-        __asm__("nop");
-    }
 }
 
 static void i2c_init(void) {
@@ -97,7 +96,6 @@ static void ssd1306_update(void) {
 static void ssd1306_clear(void) {
     for (size_t i = 0; i < ssd1306_buffer_size; i++) {
         ssd1306_buffer[i] = 0;
-    
     }
 }
 
@@ -122,48 +120,70 @@ static void ssd1306_init(void) {
     ssd1306_update();
 }
 
-static void ssd1306_compact_write_gol(GOL_t* state) {
-    size_t array_size = state->width * state->height;
-    uint8_t* map = state->map;
-    
+static size_t ssd1306_write_rle(size_t start) {
     ssd1306_clear();
 
-    for (size_t i = 0; i < array_size; i++) {
-        size_t x = i % state->width;
-        size_t y = i / state->width;
+    size_t counter = 0;
 
-        uint8_t bit = map[x + y * state->width] << (y % 8);
-        uint8_t page = y / 8;
+    size_t pixel_width = ssd1306_width / APPLE_WIDTH;
 
-        ssd1306_buffer[x + page * ssd1306_width] |= bit;
+    bool color = 0;
+
+    size_t i = 0;
+
+    while (i < ssd1306_buffer_size) {
+        counter = frames[start++];
+
+        while (counter > 0) {
+            for (size_t pix = 0; pix < pixel_width; pix++) {
+                ssd1306_buffer[i] = color ? 0xFF : 0x00;
+                i++;
+            }
+
+            counter--;
+        }
+
+        color = !color;
     }
+
+    return start;
 }
+
+size_t offset = 0;
+size_t frame = 1;
 
 int main(void) {
     clock_init();
     gpio_init();
     i2c_init();
 
-    gpio_set(GPIOC, GPIO13);
-    wait(10);
+    TIM2_CNT = 1;
+    TIM2_PSC = 2400; // 2400 == 30000 fps
+
+    TIM2_ARR = 1000; // 30000 / 1000 = 30 fps
+    TIM2_DIER |= TIM_DIER_UIE;
+
+
     ssd1306_init();
-    gpio_clear(GPIOC, GPIO13);
     ssd1306_update();
 
-    GOL_t* state = gol_init(ssd1306_width, ssd1306_height);
-
-    state->map[1 + ssd1306_width / 2 + ssd1306_width * (ssd1306_height / 2 + 1)] = 1;
-    state->map[3 + ssd1306_width / 2 + ssd1306_width * (ssd1306_height / 2 + 2)] = 1;
-    state->map[0 + ssd1306_width / 2 + ssd1306_width * (ssd1306_height / 2 + 3)] = 1;
-    state->map[1 + ssd1306_width / 2 + ssd1306_width * (ssd1306_height / 2 + 3)] = 1;
-    state->map[4 + ssd1306_width / 2 + ssd1306_width * (ssd1306_height / 2 + 3)] = 1;
-    state->map[5 + ssd1306_width / 2 + ssd1306_width * (ssd1306_height / 2 + 3)] = 1;
-    state->map[6 + ssd1306_width / 2 + ssd1306_width * (ssd1306_height / 2 + 3)] = 1;
+    TIM2_CR1 |= TIM_CR1_CEN;
 
 	while(1) {
-        ssd1306_compact_write_gol(state);
-        ssd1306_update();
-        gol_update(state);
-        gpio_toggle(GPIOC, GPIO13);
 	}
+}
+
+void tim2_isr(void) {
+    gpio_toggle(GPIOC, GPIO13);
+
+    if (frame >= 6572) {
+        offset = 0;
+    }
+
+    offset = ssd1306_write_rle(offset);
+    ssd1306_update();
+    frame++;
+
+    TIM2_SR &= ~TIM_SR_UIF;
+    TIM2_CR1 |= TIM_CR1_CEN;
 }
